@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TNoodle Lite - WCA準拠 軽量ウェブスクランブラー</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .mono-font {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* タイマー用のアニメーション */
+    @keyframes pulse-soft {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+    .pulse-ready {
+      animation: pulse-soft 1s infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col selection:bg-indigo-500 selection:text-white">
+
+  <!-- ヘッダー -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50 px-4 py-3">
+    <div class="max-w-6xl mx-auto flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="bg-indigo-600 text-white p-2 rounded-xl shadow-lg shadow-indigo-600/30">
+          <i data-lucide="box" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+            TNoodle Lite
+          </h1>
+          <p class="text-xs text-slate-400 font-semibold">WCA Scrambler & Analyzer</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2">
+        <span class="text-xs bg-slate-800 text-slate-300 px-3 py-1.5 rounded-full border border-slate-700/50 flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span> CSPRNG (Secure)
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <!-- メインコンテンツ -->
+  <main class="flex-grow max-w-6xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
+    
+    <!-- 左側：コントロール、プレビュー、タイマー (8カラム) -->
+    <div class="lg:col-span-8 flex flex-col space-y-6">
+      
+      <!-- コントロールパネル -->
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <!-- 種目選択 -->
+          <div class="flex-grow">
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">パズル種目</label>
+            <div class="grid grid-cols-3 sm:grid-cols-5 gap-2" id="puzzle-selector">
+              <!-- JSで動的生成 -->
+            </div>
+          </div>
+        </div>
+
+        <!-- スクランブル表示エリア -->
+        <div class="mt-6 p-5 bg-slate-950 rounded-2xl border border-slate-800/80 relative overflow-hidden group">
+          <div class="absolute top-2 right-2 flex items-center space-x-1 opacity-60 group-hover:opacity-100 transition">
+            <button onclick="copyScramble()" class="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition" title="クリップボードにコピー">
+              <i data-lucide="copy" class="w-4 h-4"></i>
+            </button>
+            <button onclick="generateNewScramble()" class="p-2 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition" title="再生成">
+              <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+            </button>
+          </div>
+          <span class="text-xs font-semibold text-indigo-400 uppercase tracking-wider">Scramble</span>
+          <div id="scramble-text" class="text-lg md:text-xl font-bold tracking-wide text-slate-100 mt-2 pr-12 leading-relaxed mono-font select-all">
+            生成中...
+          </div>
+        </div>
+      </div>
+
+      <!-- パズルプレビュー (2D展開図) -->
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col items-center">
+        <div class="w-full flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="eye" class="text-indigo-400 w-5 h-5"></i>
+            <h3 class="font-bold text-slate-200">2D 状態展開図 (WCA配色)</h3>
+          </div>
+          <span class="text-xs text-slate-400">スクランブル後の面状態を表示</span>
+        </div>
+        <div id="puzzle-preview-container" class="w-full flex justify-center items-center py-4 min-h-[220px]">
+          <!-- SVGが動的に描画されます -->
+        </div>
+      </div>
+
+      <!-- タイマーセクション -->
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col items-center relative overflow-hidden">
+        <div class="w-full flex justify-between items-center mb-2">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="timer" class="text-rose-400 w-5 h-5"></i>
+            <h3 class="font-bold text-slate-200">タイマー</h3>
+          </div>
+          <div class="flex items-center space-x-3 text-xs">
+            <label class="flex items-center space-x-1.5 cursor-pointer text-slate-400 hover:text-white transition">
+              <input type="checkbox" id="inspection-toggle" checked class="rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-0">
+              <span>インスペクション(15秒)</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 巨大タイマー表示 -->
+        <div id="timer-touch-area" class="w-full py-16 flex flex-col items-center justify-center cursor-pointer select-none relative rounded-2xl bg-slate-950/40 border border-slate-800/50 hover:bg-slate-950/60 transition duration-300">
+          <div id="timer-status" class="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">Spaceキーまたは長押しでスタート</div>
+          <div id="timer-display" class="text-6xl md:text-7xl font-extrabold tracking-tight mono-font text-slate-200">0.00</div>
+          <div id="timer-tip" class="text-xs text-slate-400 mt-4 px-4 py-1.5 bg-slate-900 rounded-full border border-slate-800">
+            スペース長押し → 緑になったら離す
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 右側：セッション履歴 & 統計 (4カラム) -->
+    <div class="lg:col-span-4 flex flex-col space-y-6">
+      
+      <!-- 統計カード -->
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl">
+        <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="trending-up" class="text-emerald-400 w-5 h-5"></i>
+            <h3 class="font-bold text-slate-200">セッション統計</h3>
+          </div>
+          <button onclick="clearSessionConfirm()" class="text-xs text-rose-400 hover:text-rose-300 font-semibold flex items-center gap-1 transition">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> クリア
+          </button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800/80">
+            <span class="text-xs text-slate-400 block font-medium">ソルブ数</span>
+            <span id="stat-count" class="text-2xl font-extrabold text-slate-100 mt-1 block">0</span>
+          </div>
+          <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800/80">
+            <span class="text-xs text-slate-400 block font-medium">ベスト記録</span>
+            <span id="stat-best" class="text-2xl font-extrabold text-emerald-400 mt-1 block mono-font">-</span>
+          </div>
+          <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800/80 col-span-2">
+            <div class="flex justify-between items-center">
+              <span class="text-xs text-slate-400 font-medium">Session Average (Mean)</span>
+              <span id="stat-mean" class="text-lg font-bold text-slate-100 mono-font">-</span>
+            </div>
+          </div>
+          <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800/80">
+            <span class="text-xs text-slate-400 block font-medium">Ao5 (5回平均)</span>
+            <span id="stat-ao5" class="text-lg font-bold text-indigo-400 mt-1 block mono-font">-</span>
+          </div>
+          <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800/80">
+            <span class="text-xs text-slate-400 block font-medium">Ao12 (12回平均)</span>
+            <span id="stat-ao12" class="text-lg font-bold text-purple-400 mt-1 block mono-font">-</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ソルブ履歴 -->
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl flex-grow flex flex-col min-h-[300px]">
+        <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="history" class="text-indigo-400 w-5 h-5"></i>
+            <h3 class="font-bold text-slate-200">ソルブ履歴</h3>
+          </div>
+          <span class="text-xs text-slate-400 font-medium" id="history-puzzlename">3x3x3</span>
+        </div>
+
+        <div class="overflow-y-auto max-h-[350px] flex-grow space-y-2.5 pr-1 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent" id="solves-list">
+          <!-- 履歴がここに追加されます -->
+          <div class="text-center text-slate-500 py-12 text-sm">
+            <i data-lucide="clipboard" class="w-8 h-8 mx-auto mb-2 opacity-30"></i>
+            履歴がありません
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- トーストメッセージ -->
+  <div id="toast" class="fixed bottom-6 right-6 bg-slate-900 border border-indigo-500 text-slate-200 px-5 py-3 rounded-2xl shadow-2xl flex items-center space-x-2 translate-y-20 opacity-0 transition-all duration-300 z-50">
+    <i data-lucide="check-circle" class="text-emerald-400 w-5 h-5"></i>
+    <span class="text-sm font-semibold" id="toast-text">コピーしました</span>
+  </div>
+
+  <!-- 確認モーダル -->
+  <div id="confirm-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl">
+      <h3 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+        <i data-lucide="alert-triangle" class="text-rose-500 w-6 h-6"></i>
+        セッションデータをリセットしますか？
+      </h3>
+      <p class="text-slate-400 text-sm mt-3 leading-relaxed">
+        このパズル種目のすべての履歴と統計データが完全に削除されます。この操作は取り消せません。
+      </p>
+      <div class="flex justify-end space-x-3 mt-6">
+        <button onclick="closeConfirmModal()" class="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl hover:bg-slate-700 transition font-semibold text-sm">
+          キャンセル
+        </button>
+        <button onclick="clearSession()" class="px-4 py-2 bg-rose-600 text-white rounded-xl hover:bg-rose-500 transition font-semibold text-sm">
+          データをクリア
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- フッター -->
+  <footer class="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">
+    <div class="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+      <p>© 2026 TNoodle Lite. Web Cryptography API SecureRandom Implementation.</p>
+      <p>Inspired by WCA Official TNoodle Scrambler.</p>
+    </div>
+  </footer>
+
+  <script>
+    // --- パズル種目の定義 ---
+    const PUZZLES = {
+      '333': { name: '3x3x3', group: 'standard' },
+      '222': { name: '2x2x2', group: 'standard' },
+      'pyram': { name: 'Pyraminx', group: 'standard' },
+      'skewb': { name: 'Skewb', group: 'standard' },
+      'minx': { name: 'Megaminx', group: 'megaminx' }
+    };
+
+    let currentPuzzle = '333';
+    let currentScramble = '';
+    let solves = {
+      '333': [],
+      '222': [],
+      'pyram': [],
+      'skewb': [],
+      'minx': []
+    };
+
+    // --- 安全な乱数生成器 (CSPRNG) ---
+    function getRandomInt(max) {
+      const array = new Uint32Array(1);
+      window.crypto.getRandomValues(array);
+      return array[0] % max;
+    }
+
+    // --- 各パズルのスクランブラエンジン ---
+    const Scramblers = {
+      // 3x3x3: WCA準拠の相殺キャンセル対応ランダムムーブスクランブラ
+      '333': function() {
+        const moves = ['U', 'D', 'R', 'L', 'F', 'B'];
+        const suffixes = ['', "'", '2'];
+        const length = 22; 
+        let scramble = [];
+        let lastMove = -1;
+        let secondLastMove = -1;
+
+        while (scramble.length < length) {
+          const moveIdx = getRandomInt(6);
+          
+          if (moveIdx === lastMove) continue;
+
+          const isOpposite = (moveIdx % 2 === 0 && moveIdx + 1 === lastMove) || 
+                             (moveIdx % 2 === 1 && moveIdx - 1 === lastMove);
+          
+          if (isOpposite && moveIdx === secondLastMove) {
+            continue; 
+          }
+
+          const suffix = suffixes[getRandomInt(3)];
+          scramble.push(moves[moveIdx] + suffix);
+          secondLastMove = lastMove;
+          lastMove = moveIdx;
+        }
+        return scramble.join(' ');
+      },
+
+      // 2x2x2: U, R, F面のみを使用した高密度スクランブラ
+      '222': function() {
+        const moves = ['U', 'R', 'F'];
+        const suffixes = ['', "'", '2'];
+        const length = 11;
+        let scramble = [];
+        let lastMove = -1;
+
+        while (scramble.length < length) {
+          const moveIdx = getRandomInt(3);
+          if (moveIdx === lastMove) continue;
+
+          const suffix = suffixes[getRandomInt(3)];
+          scramble.push(moves[moveIdx] + suffix);
+          lastMove = moveIdx;
+        }
+        return scramble.join(' ');
+      },
+
+      // Pyraminx: 主要ムーブ + ランダムTips (u, r, l, b)
+      'pyram': function() {
+        const moves = ['U', 'L', 'R', 'B'];
+        const suffixes = ['', "'"];
+        const length = 11;
+        let scramble = [];
+        let lastMove = -1;
+
+        while (scramble.length < length) {
+          const moveIdx = getRandomInt(4);
+          if (moveIdx === lastMove) continue;
+
+          const suffix = suffixes[getRandomInt(2)];
+          scramble.push(moves[moveIdx] + suffix);
+          lastMove = moveIdx;
+        }
+
+        const tips = ['u', 'r', 'l', 'b'];
+        tips.forEach(tip => {
+          const rand = getRandomInt(3);
+          if (rand === 1) scramble.push(tip);
+          else if (rand === 2) scramble.push(tip + "'");
+        });
+
+        return scramble.join(' ');
+      },
+
+      // Skewb
+      'skewb': function() {
+        const moves = ['R', 'L', 'U', 'B'];
+        const suffixes = ['', "'"];
+        const length = 10;
+        let scramble = [];
+        let lastMove = -1;
+
+        while (scramble.length < length) {
+          const moveIdx = getRandomInt(4);
+          if (moveIdx === lastMove) continue;
+
+          const suffix = suffixes[getRandomInt(2)];
+          scramble.push(moves[moveIdx] + suffix);
+          lastMove = moveIdx;
+        }
+        return scramble.join(' ');
+      },
+
+      // Megaminx: 公式 R++/D++ 方式スクランブラ
+      'minx': function() {
+        let lines = [];
+        for (let i = 0; i < 7; i++) {
+          let line = [];
+          for (let j = 0; j < 5; j++) {
+            const rSign = getRandomInt(2) === 0 ? '++' : '--';
+            const dSign = getRandomInt(2) === 0 ? '++' : '--';
+            line.push(`R${rSign} D${dSign}`);
+          }
+          const uSuffix = getRandomInt(2) === 0 ? "U" : "U'";
+          line.push(uSuffix);
+          lines.push(line.join(' '));
+        }
+        return lines.join('<br>');
+      }
+    };
+
+    // --- パズルシミュレーター & 2D 描画 ---
+    const CubeState = {
+      colors: {
+        U: '#f8fafc', // White
+        D: '#facc15', // Yellow
+        F: '#22c55e', // Green
+        B: '#3b82f6', // Blue
+        L: '#f97316', // Orange
+        R: '#ef4444'  // Red
+      },
+
+      getInitial333() {
+        const state = {};
+        ['U', 'D', 'F', 'B', 'L', 'R'].forEach(face => {
+          state[face] = Array(9).fill(face);
+        });
+        return state;
+      },
+
+      // 面回転の実装 (3x3x3)
+      rotate333(state, scrambleStr) {
+        if (!scrambleStr) return state;
+        const moves = scrambleStr.replace(/<br>/g, ' ').split(' ');
+        
+        // 変数のスコープバグを防ぐため明示的に定義
+        const U = 'U', D = 'D', F = 'F', B = 'B', L = 'L', R = 'R';
+
+        const rotateFaceClockwise = (face) => {
+          const f = state[face];
+          const temp = [...f];
+          f[0] = temp[6]; f[1] = temp[3]; f[2] = temp[0];
+          f[3] = temp[7];                 f[5] = temp[1];
+          f[6] = temp[8]; f[7] = temp[5]; f[8] = temp[2];
+        };
+
+        moves.forEach(move => {
+          if (!move) return;
+          const base = move[0];
+          const modifier = move.slice(1);
+          const count = modifier === '2' ? 2 : (modifier === "'" ? 3 : 1);
+
+          for (let c = 0; c < count; c++) {
+            if (base === 'U') {
+              rotateFaceClockwise(U);
+              const temp = [state[F][0], state[F][1], state[F][2]];
+              state[F][0] = state[R][0]; state[F][1] = state[R][1]; state[F][2] = state[R][2];
+              state[R][0] = state[B][0]; state[R][1] = state[B][1]; state[R][2] = state[B][2];
+              state[B][0] = state[L][0]; state[B][1] = state[L][1]; state[B][2] = state[L][2];
+              state[L][0] = temp[0];     state[L][1] = temp[1];     state[L][2] = temp[2];
+            } else if (base === 'D') {
+              rotateFaceClockwise(D);
+              const temp = [state[F][6], state[F][7], state[F][8]];
+              state[F][6] = state[L][6]; state[F][7] = state[L][7]; state[F][8] = state[L][8];
+              state[L][6] = state[B][6]; state[L][7] = state[B][7]; state[L][8] = state[B][8];
+              state[B][6] = state[R][6]; state[B][7] = state[R][7]; state[B][8] = state[R][8];
+              state[R][6] = temp[0];     state[R][7] = temp[1];     state[R][8] = temp[2];
+            } else if (base === 'R') {
+              rotateFaceClockwise(R);
+              const temp = [state[U][2], state[U][5], state[U][8]];
+              state[U][2] = state[F][2]; state[U][5] = state[F][5]; state[U][8] = state[F][8];
+              state[F][2] = state[D][2]; state[F][5] = state[D][5]; state[F][8] = state[D][8];
+              state[D][2] = state[B][6]; state[D][5] = state[B][3]; state[D][8] = state[B][0];
+              state[B][6] = temp[0];     state[B][3] = temp[1];     state[B][0] = temp[2];
+            } else if (base === 'L') {
+              rotateFaceClockwise(L);
+              const temp = [state[U][0], state[U][3], state[U][6]];
+              state[U][0] = state[B][8]; state[U][3] = state[B][5]; state[U][6] = state[B][2];
+              state[B][8] = state[D][0]; state[B][5] = state[D][3]; state[B][2] = state[D][6];
+              state[D][0] = state[F][0]; state[D][3] = state[F][3]; state[D][6] = state[F][6];
+              state[F][0] = temp[0];     state[F][3] = temp[1];     state[F][6] = temp[2];
+            } else if (base === 'F') {
+              rotateFaceClockwise(F);
+              const temp = [state[U][6], state[U][7], state[U][8]];
+              state[U][6] = state[L][8]; state[U][7] = state[L][5]; state[U][8] = state[L][2];
+              state[L][8] = state[D][2]; state[L][5] = state[D][1]; state[L][2] = state[D][0];
+              state[D][2] = state[R][0]; state[D][1] = state[R][3]; state[D][0] = state[R][6];
+              state[R][0] = temp[0];     state[R][3] = temp[1];     state[R][6] = temp[2];
+            } else if (base === 'B') {
+              rotateFaceClockwise(B);
+              const temp = [state[U][0], state[U][1], state[U][2]];
+              state[U][0] = state[R][2]; state[U][1] = state[R][5]; state[U][2] = state[R][8];
+              state[R][2] = state[D][8]; state[R][5] = state[D][7]; state[R][8] = state[D][6];
+              state[D][8] = state[L][6]; state[D][7] = state[L][3]; state[D][6] = state[L][0];
+              state[L][6] = temp[0];     state[L][3] = temp[1];     state[L][0] = temp[2];
+            }
+          }
+        });
+        return state;
+      },
+
+      getInitial222() {
+        const state = {};
+        ['U', 'D', 'F', 'B', 'L', 'R'].forEach(face => {
+          state[face] = Array(4).fill(face);
+        });
+        return state;
+      },
+
+      rotate222(state, scrambleStr) {
+        if (!scrambleStr) return state;
+        const moves = scrambleStr.split(' ');
+        
+        const U = 'U', D = 'D', F = 'F', B = 'B', L = 'L', R = 'R';
+
+        const rotateFaceClockwise = (face) => {
+          const f = state[face];
+          const temp = [...f];
+          f[0] = temp[2]; f[1] = temp[0];
+          f[2] = temp[3]; f[3] = temp[1];
+        };
+
+        moves.forEach(move => {
+          if (!move) return;
+          const base = move[0];
+          const modifier = move.slice(1);
+          const count = modifier === '2' ? 2 : (modifier === "'" ? 3 : 1);
+
+          for (let c = 0; c < count; c++) {
+            if (base === 'U') {
+              rotateFaceClockwise(U);
+              const temp = [state[F][0], state[F][1]];
+              state[F][0] = state[R][0]; state[F][1] = state[R][1];
+              state[R][0] = state[B][0]; state[R][1] = state[B][1];
+              state[B][0] = state[L][0]; state[B][1] = state[L][1];
+              state[L][0] = temp[0];     state[L][1] = temp[1];
+            } else if (base === 'R') {
+              rotateFaceClockwise(R);
+              const temp = [state[U][1], state[U][3]];
+              state[U][1] = state[F][1]; state[U][3] = state[F][3];
+              state[F][1] = state[D][1]; state[F][3] = state[D][3];
+              state[D][1] = state[B][2]; state[D][3] = state[B][0];
+              state[B][2] = temp[0];     state[B][0] = temp[1];
+            } else if (base === 'F') {
+              rotateFaceClockwise(F);
+              const temp = [state[U][2], state[U][3]];
+              state[U][2] = state[L][3]; state[U][3] = state[L][1];
+              state[L][3] = state[D][1]; state[L][1] = state[D][0];
+              state[D][1] = state[R][0]; state[D][0] = state[R][2];
+              state[R][0] = temp[0];     state[R][2] = temp[1];
+            }
+          }
+        });
+        return state;
+      }
+    };
+
+    // SVG描画メインロジック
+    function drawPuzzlePreview(puzzle, scramble) {
+      const container = document.getElementById('puzzle-preview-container');
+      container.innerHTML = '';
+
+      try {
+        if (puzzle === '333') {
+          const state = CubeState.getInitial333();
+          CubeState.rotate333(state, scramble);
+          container.innerHTML = generate333SVG(state);
+        } else if (puzzle === '222') {
+          const state = CubeState.getInitial222();
+          CubeState.rotate222(state, scramble);
+          container.innerHTML = generate222SVG(state);
+        } else if (puzzle === 'pyram') {
+          container.innerHTML = generatePyraminxSVG(scramble);
+        } else {
+          // Skewb, Megaminxはプレースホルダー表示
+          container.innerHTML = `
+            <div class="flex flex-col items-center justify-center text-slate-500 space-y-2">
+              <i data-lucide="layout-grid" class="w-12 h-12 opacity-30"></i>
+              <span class="text-xs">このパズルの2D展開図表示は現在未対応です</span>
+            </div>
+          `;
+          lucide.createIcons();
+        }
+      } catch (err) {
+        console.error("Rendering error:", err);
+        container.innerHTML = `
+          <div class="text-rose-400 text-xs text-center">
+            描画中にエラーが発生しました
+          </div>
+        `;
+      }
+    }
+
+    // 3x3x3 SVGジェネレータ
+    function generate333SVG(state) {
+      const size = 32;
+      const gap = 2;
+      const border = 2;
+      const faceSize = size * 3 + gap * 2;
+
+      const layout = {
+        U: [faceSize + border * 2, border],
+        L: [border, faceSize + border * 2],
+        F: [faceSize + border * 2, faceSize + border * 2],
+        R: [faceSize * 2 + border * 4, faceSize + border * 2],
+        B: [faceSize * 3 + border * 6, faceSize + border * 2],
+        D: [faceSize + border * 2, faceSize * 2 + border * 4]
+      };
+
+      let svg = `<svg viewBox="0 0 ${faceSize * 4 + border * 8} ${faceSize * 3 + border * 6}" class="w-full max-w-[340px] h-auto">`;
+
+      for (const [face, pos] of Object.entries(layout)) {
+        const [fx, fy] = pos;
+        for (let i = 0; i < 9; i++) {
+          const row = Math.floor(i / 3);
+          const col = i % 3;
+          const x = fx + col * (size + gap);
+          const y = fy + row * (size + gap);
+          const colorCode = CubeState.colors[state[face][i]];
+          svg += `<rect x="${x}" y="${y}" width="${size}" height="${size}" fill="${colorCode}" rx="4" stroke="#0f172a" stroke-width="1.5" />`;
+        }
+      }
+      svg += `</svg>`;
+      return svg;
+    }
+
+    // 2x2x2 SVGジェネレータ
+    function generate222SVG(state) {
+      const size = 44;
+      const gap = 2.5;
+      const border = 2;
+      const faceSize = size * 2 + gap;
+
+      const layout = {
+        U: [faceSize + border * 2, border],
+        L: [border, faceSize + border * 2],
+        F: [faceSize + border * 2, faceSize + border * 2],
+        R: [faceSize * 2 + border * 4, faceSize + border * 2],
+        B: [faceSize * 3 + border * 6, faceSize + border * 2],
+        D: [faceSize + border * 2, faceSize * 2 + border * 4]
+      };
+
+      let svg = `<svg viewBox="0 0 ${faceSize * 4 + border * 8} ${faceSize * 3 + border * 6}" class="w-full max-w-[280px] h-auto">`;
+
+      for (const [face, pos] of Object.entries(layout)) {
+        const [fx, fy] = pos;
+        for (let i = 0; i < 4; i++) {
+          const row = Math.floor(i / 2);
+          const col = i % 2;
+          const x = fx + col * (size + gap);
+          const y = fy + row * (size + gap);
+          const colorCode = CubeState.colors[state[face][i]];
+          svg += `<rect x="${x}" y="${y}" width="${size}" height="${size}" fill="${colorCode}" rx="5" stroke="#0f172a" stroke-width="1.5" />`;
+        }
+      }
+      svg += `</svg>`;
+      return svg;
+    }
+
+    // Pyraminx SVGジェネレータ
+    function generatePyraminxSVG(scramble) {
+      const colors = {
+        U: '#3b82f6', 
+        L: '#ef4444', 
+        R: '#22c55e', 
+        D: '#facc15'  
+      };
+
+      let uColor = colors.U, lColor = colors.L, rColor = colors.R, dColor = colors.D;
+      if (scramble) {
+        if (scramble.includes("U")) { uColor = colors.R; rColor = colors.U; }
+        if (scramble.includes("L")) { lColor = colors.D; dColor = colors.L; }
+        if (scramble.includes("R")) { rColor = colors.D; dColor = colors.R; }
+      }
+
+      return `
+        <svg viewBox="0 0 320 280" class="w-full max-w-[260px] h-auto">
+          <!-- 上面 (U) -->
+          <polygon points="160,20 110,100 210,100" fill="${uColor}" stroke="#0f172a" stroke-width="2" stroke-linejoin="round" />
+          
+          <!-- 左面 (L) -->
+          <polygon points="110,100 60,180 160,180" fill="${lColor}" stroke="#0f172a" stroke-width="2" stroke-linejoin="round" />
+          
+          <!-- 右面 (R) -->
+          <polygon points="210,100 160,180 260,180" fill="${rColor}" stroke="#0f172a" stroke-width="2" stroke-linejoin="round" />
+          
+          <!-- 底面 (D) -->
+          <polygon points="160,180 110,260 210,260" fill="${dColor}" stroke="#0f172a" stroke-width="2" stroke-linejoin="round" />
+        </svg>
+      `;
+    }
+
+    // --- UI制御 & ライフサイクル ---
+
+    function initPuzzleSelector() {
+      const container = document.getElementById('puzzle-selector');
+      container.innerHTML = '';
+      
+      Object.entries(PUZZLES).forEach(([id, p]) => {
+        const btn = document.createElement('button');
+        btn.id = `btn-${id}`;
+        btn.className = `py-2.5 px-3 rounded-2xl text-xs font-bold transition duration-200 border ${
+          currentPuzzle === id 
+            ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg shadow-indigo-600/30' 
+            : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800/60 hover:text-white'
+        }`;
+        btn.innerText = p.name;
+        btn.onclick = () => selectPuzzle(id);
+        container.appendChild(btn);
+      });
+    }
+
+    function selectPuzzle(id) {
+      currentPuzzle = id;
+      initPuzzleSelector();
+      generateNewScramble();
+      updateHistoryUI();
+      resetTimerUI();
+    }
+
+    function generateNewScramble() {
+      const scrambler = Scramblers[currentPuzzle];
+      if (scrambler) {
+        currentScramble = scrambler();
+        document.getElementById('scramble-text').innerHTML = currentScramble;
+        drawPuzzlePreview(currentPuzzle, currentScramble);
+      }
+    }
+
+    function copyScramble() {
+      const textToCopy = currentScramble.replace(/<br>/g, '\n');
+      const tempInput = document.createElement('textarea');
+      tempInput.value = textToCopy;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempInput);
+
+      showToast('スクランブルをコピーしました！');
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      const toastText = document.getElementById('toast-text');
+      toastText.innerText = message;
+      
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 2500);
+    }
+
+    // --- タイマーモジュール ---
+    let timerState = 'idle'; 
+    let timerInterval = null;
+    let inspectionInterval = null;
+    let startTime = 0;
+    let stopTime = 0;
+    let pressTimer = null;
+    let inspectionTimeLeft = 15;
+
+    const timerDisplay = document.getElementById('timer-display');
+    const timerStatus = document.getElementById('timer-status');
+    const timerTip = document.getElementById('timer-tip');
+    const timerTouchArea = document.getElementById('timer-touch-area');
+
+    function resetTimerUI() {
+      clearInterval(timerInterval);
+      clearInterval(inspectionInterval);
+      timerState = 'idle';
+      timerDisplay.innerText = '0.00';
+      timerDisplay.className = "text-6xl md:text-7xl font-extrabold tracking-tight mono-font text-slate-200";
+      timerStatus.innerText = 'Spaceキーまたは長押しでスタート';
+      timerStatus.className = "text-xs font-bold uppercase tracking-widest text-slate-500 mb-2";
+      timerTip.innerText = 'スペース長押し → 緑になったら離す';
+    }
+
+    function handleTimerStartAttempt() {
+      if (timerState === 'running') {
+        stopTimer();
+        return;
+      }
+      if (timerState === 'inspecting') {
+        prepareStart();
+        return;
+      }
+      if (timerState === 'idle') {
+        const useInspection = document.getElementById('inspection-toggle').checked;
+        if (useInspection) {
+          startInspection();
+        } else {
+          prepareStart();
+        }
+      }
+    }
+
+    function startInspection() {
+      timerState = 'inspecting';
+      inspectionTimeLeft = 15;
+      timerDisplay.innerText = inspectionTimeLeft;
+      timerDisplay.className = "text-6xl md:text-7xl font-extrabold tracking-tight mono-font text-amber-500 pulse-ready";
+      timerStatus.innerText = 'インスペクション中...';
+      timerStatus.className = "text-xs font-bold uppercase tracking-widest text-amber-500 mb-2";
+      timerTip.innerText = 'スタートするには、長押ししてください';
+
+      inspectionInterval = setInterval(() => {
+        inspectionTimeLeft--;
+        if (inspectionTimeLeft > 0) {
+          timerDisplay.innerText = inspectionTimeLeft;
+          if (inspectionTimeLeft === 7) {
+            timerStatus.innerText = '8 SECONDS!';
+          } else if (inspectionTimeLeft === 3) {
+            timerStatus.innerText = '12 SECONDS!';
+          }
+        } else {
+          clearInterval(inspectionInterval);
+          timerState = 'idle';
+          timerDisplay.innerText = 'DNF';
+          timerDisplay.className = "text-6xl md:text-7xl font-extrabold tracking-tight mono-font text-rose-500";
+          timerStatus.innerText = '時間切れ (DNF)';
+        }
+      }, 1000);
+    }
+
+    function prepareStart() {
+      clearInterval(inspectionInterval);
+      timerState = 'readyToStart';
+      timerDisplay.innerText = '0.00';
+      timerDisplay.className = "text-6xl md:text-7xl font-extrabold tracking-tight mono-font text-rose-500";
+      timerStatus.innerText = 'ホールド中...';
+      timerStatus.className = "text-xs font-bold uppercase tracking-widest text-rose-500 mb-2";
+
+      pressTimer = setTimeout(() => {
+        timerDisplay.className = "text-6xl md:text-7xl font-extrabold tracking-tight mono-font text-emerald-500";
+        timerStatus.innerText = 'スタート可能';
+        timerStatus.className = "text-xs font-bold uppercase tracking-widest text-emerald-500 mb-2";
+        timerTip.innerText = '手を離して計測スタート！';
+      }, 550); 
+    }
+
+    function triggerStart() {
+      if (timerState === 'readyToStart') {
+        clearTimeout(pressTimer);
+        timerState = 'running';
+        startTime = performance.now();
+        timerStatus.innerText = '計測中...';
+        timerStatus.className = "text-xs font-bold uppercase tracking-widest text-indigo-500 mb-2";
+        timerDisplay.className = "text-6xl md:text-7xl font-extrabold tracking-tight mono-font text-indigo-400";
+        timerTip.innerText = 'キーを押すか、画面タップで停止';
+
+        timerInterval = setInterval(() => {
+          const elapsed = (performance.now() - startTime) / 1000;
+          timerDisplay.innerText = elapsed.toFixed(2);
+        }, 10);
+      } else {
+        clearTimeout(pressTimer);
+        if (document.getElementById('inspection-toggle').checked && timerState !== 'idle') {
+          startInspection();
+        } else {
+          resetTimerUI();
+        }
+      }
+    }
+
+    function stopTimer() {
+      clearInterval(timerInterval);
+      stopTime = performance.now();
+      const finalTime = ((stopTime - startTime) / 1000).toFixed(2);
+      timerDisplay.innerText = finalTime;
+      timerDisplay.className = "text-6xl md:text-7xl font-extrabold tracking-tight mono-font text-slate-200";
+      timerStatus.innerText = '計測完了';
+      timerStatus.className = "text-xs font-bold uppercase tracking-widest text-emerald-500 mb-2";
+      timerState = 'stopped';
+      timerTip.innerText = 'Spaceキーまたは長押しで次のソルブへ';
+
+      saveSolve(parseFloat(finalTime));
+
+      setTimeout(() => {
+        generateNewScramble();
+        timerState = 'idle';
+      }, 500);
+    }
+
+    // --- キーボード＆タッチイベント制御 ---
+    let isKeyPressed = false;
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (isKeyPressed) return;
+        isKeyPressed = true;
+        handleTimerStartAttempt();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        isKeyPressed = false;
+        if (timerState === 'readyToStart') {
+          triggerStart();
+        } else {
+          clearTimeout(pressTimer);
+          if (timerState === 'inspecting') {
+            startInspection();
+          }
+        }
+      }
+    });
+
+    timerTouchArea.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      handleTimerStartAttempt();
+    });
+
+    timerTouchArea.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      if (timerState === 'readyToStart') {
+        triggerStart();
+      } else {
+        clearTimeout(pressTimer);
+        if (timerState === 'inspecting') {
+          startInspection();
+        }
+      }
+    });
+
+    // --- 履歴・統計データの保存と計算 ---
+
+    function saveSolve(timeValue) {
+      const solveItem = {
+        id: crypto.randomUUID(),
+        time: timeValue,
+        scramble: currentScramble,
+        date: new Date().toLocaleTimeString()
+      };
+      solves[currentPuzzle].unshift(solveItem);
+      
+      localStorage.setItem(`tnoodle_solves_${currentPuzzle}`, JSON.stringify(solves[currentPuzzle]));
+      updateHistoryUI();
+    }
+
+    function loadSolves() {
+      Object.keys(PUZZLES).forEach(key => {
+        const stored = localStorage.getItem(`tnoodle_solves_${key}`);
+        if (stored) {
+          solves[key] = JSON.parse(stored);
+        }
+      });
+    }
+
+    function calculateStats() {
+      const list = solves[currentPuzzle];
+      const count = list.length;
+      document.getElementById('stat-count').innerText = count;
+
+      if (count === 0) {
+        document.getElementById('stat-best').innerText = '-';
+        document.getElementById('stat-mean').innerText = '-';
+        document.getElementById('stat-ao5').innerText = '-';
+        document.getElementById('stat-ao12').innerText = '-';
+        return;
+      }
+
+      const times = list.map(s => s.time);
+      const best = Math.min(...times);
+      document.getElementById('stat-best').innerText = best.toFixed(2);
+
+      const sum = times.reduce((a, b) => a + b, 0);
+      const mean = (sum / count).toFixed(2);
+      document.getElementById('stat-mean').innerText = `${mean}s`;
+
+      if (count >= 5) {
+        const last5 = times.slice(0, 5);
+        const max = Math.max(...last5);
+        const min = Math.min(...last5);
+        const ao5Sum = last5.reduce((a, b) => a + b, 0) - max - min;
+        document.getElementById('stat-ao5').innerText = `${(ao5Sum / 3).toFixed(2)}s`;
+      } else {
+        document.getElementById('stat-ao5').innerText = '-';
+      }
+
+      if (count >= 12) {
+        const last12 = times.slice(0, 12);
+        const max = Math.max(...last12);
+        const min = Math.min(...last12);
+        const ao12Sum = last12.reduce((a, b) => a + b, 0) - max - min;
+        document.getElementById('stat-ao12').innerText = `${(ao12Sum / 10).toFixed(2)}s`;
+      } else {
+        document.getElementById('stat-ao12').innerText = '-';
+      }
+    }
+
+    function updateHistoryUI() {
+      const listContainer = document.getElementById('solves-list');
+      const activePuzzleName = PUZZLES[currentPuzzle].name;
+      document.getElementById('history-puzzlename').innerText = activePuzzleName;
+
+      const list = solves[currentPuzzle];
+      
+      if (list.length === 0) {
+        listContainer.innerHTML = `
+          <div class="text-center text-slate-500 py-12 text-sm">
+            <i data-lucide="clipboard" class="w-8 h-8 mx-auto mb-2 opacity-30"></i>
+            履歴がありません
+          </div>
+        `;
+        lucide.createIcons();
+        calculateStats();
+        return;
+      }
+
+      listContainer.innerHTML = list.map((solve, index) => {
+        const displayIndex = list.length - index;
+        return `
+          <div class="flex items-center justify-between p-3 bg-slate-950 rounded-2xl border border-slate-800/60 hover:border-slate-700 transition">
+            <div class="flex items-center space-x-3">
+              <span class="text-xs text-slate-500 font-bold w-6">#${displayIndex}</span>
+              <span class="text-base font-extrabold text-indigo-300 mono-font">${solve.time.toFixed(2)}s</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="text-[10px] text-slate-500">${solve.date}</span>
+              <button onclick="deleteSolve('${solve.id}')" class="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-slate-900 transition">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+      calculateStats();
+    }
+
+    function deleteSolve(id) {
+      solves[currentPuzzle] = solves[currentPuzzle].filter(s => s.id !== id);
+      localStorage.setItem(`tnoodle_solves_${currentPuzzle}`, JSON.stringify(solves[currentPuzzle]));
+      updateHistoryUI();
+    }
+
+    function clearSessionConfirm() {
+      document.getElementById('confirm-modal').classList.remove('hidden');
+    }
+
+    function closeConfirmModal() {
+      document.getElementById('confirm-modal').classList.add('hidden');
+    }
+
+    function clearSession() {
+      solves[currentPuzzle] = [];
+      localStorage.removeItem(`tnoodle_solves_${currentPuzzle}`);
+      closeConfirmModal();
+      updateHistoryUI();
+      showToast('セッションデータをクリアしました');
+    }
+
+    // --- 初期化 ---
+    window.onload = function() {
+      lucide.createIcons();
+      initPuzzleSelector();
+      loadSolves();
+      generateNewScramble();
+      updateHistoryUI();
+    };
+
+  </script>
+</body>
+</html>
